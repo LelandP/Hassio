@@ -1,0 +1,172 @@
+substitutions:
+  devicename: nodexx
+
+esphome:
+  name: ag-pro-${devicename}
+  platform: ESP8266
+  board: d1_mini
+
+logger:
+
+api:
+
+ota:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  ap:
+    ssid: "Esphome-Web-671174"
+    password: "bQM92tle8gAB"
+
+captive_portal:
+
+i2c:
+  sda: D2
+  scl: D1
+
+bme680_bsec:
+    address: 0x77
+    temperature_offset: 0
+    iaq_mode: static
+    sample_rate: ulp
+    state_save_interval: 6h
+
+uart:
+  - rx_pin: D5
+    tx_pin: D6
+    baud_rate: 9600
+    id: uart1
+  - rx_pin: D4
+    tx_pin: D3
+    baud_rate: 9600
+    id: uart2
+
+sensor:
+  - platform: bme680_bsec
+    temperature:
+      id: temp
+      name: "${devicename} Temperature"
+      sample_rate: lp
+      filters:
+        - median
+    pressure:
+      name: "${devicename} Pressure"
+      sample_rate: lp
+      filters:
+        - median
+    humidity:
+      id: humidity
+      name: "${devicename} Humidity"
+      sample_rate: lp
+      filters:
+        - median
+    gas_resistance:
+      name: "${devicename} Gas Resistance"
+      filters:
+        - median
+    iaq:
+      name: "${devicename} IAQ"
+      filters:
+        - median
+    iaq_accuracy:
+      name: "${devicename} IAQ Accuracy"
+    breath_voc_equivalent:
+      name: "${devicename} VOC"
+      filters:
+        - median
+  - platform: pmsx003
+    type: PMSX003
+    uart_id: uart1
+    pm_2_5:
+      name: "${devicename} PM 2.5"
+      id: pm25
+      filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+    pm_1_0:
+      name: "${devicename} PM 1.0"
+      id: pm10
+      filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+    pm_10_0:
+      name: "${devicename} PM 10.0"
+      id: pm100
+      filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+  - platform: senseair
+    uart_id: uart2
+    co2:
+      id: co2
+      name: "${devicename} CO2"
+    update_interval: 20s
+
+font:
+  - file: "font/productsans.ttf"
+    id: product
+    size: 42
+    glyphs: |
+      0123456789 .
+  - file: "font/Roboto-Light.ttf"
+    id: unit
+    size: 16
+    glyphs: |
+      !"%°RHFC pbmgµ³/
+  - file: "font/Roboto-Light.ttf"
+    id: label
+    size: 11
+    glyphs: |
+      HTPCDVO abcdeilmnoprstuxy
+  - file: "font/materialdesignicons-webfont.ttf"
+    id: icon
+    size: 38
+    glyphs: [
+      "\U000F058E", #water percent
+      "\U000F07E4", #C02
+      "\U000F1799", #smoke
+      "\U000F0F55", #Temp Icon
+      "\U000F0438" #heater
+    ]
+
+display:
+  - platform: ssd1306_i2c
+    model: "SH1106 128x64"
+    rotation: "180°"
+    id: main_screen
+    pages:
+      - id: page1
+        lambda: |-
+          it.printf(84, 72, id(product), TextAlign::BOTTOM_RIGHT, "%.1f", id(temp).state);
+          it.printf(84, 64, id(unit), TextAlign::BOTTOM_LEFT, "°C");
+          it.printf(128, 0, id(icon), TextAlign::TOP_RIGHT, "\U000F0F55");
+          it.printf(86, 12, id(label), TextAlign::TOP_RIGHT, "Temperature");
+      - id: page2
+        lambda: |-
+          it.printf(84, 72, id(product), TextAlign::BOTTOM_RIGHT, "%.1f", id(humidity).state);
+          it.printf(84, 64, id(unit), TextAlign::BOTTOM_LEFT, "%% RH");
+          it.printf(128, 0, id(icon), TextAlign::TOP_RIGHT, "\U000F058E");
+          it.printf(86, 12, id(label), TextAlign::TOP_RIGHT, "Humidity");
+      - id: page3
+        lambda: |-
+          it.printf(84, 72, id(product), TextAlign::BOTTOM_RIGHT, "%.0f", id(co2).state);
+          it.printf(84, 64, id(unit), TextAlign::BOTTOM_LEFT, "ppm");
+          it.printf(128, 0, id(icon), TextAlign::TOP_RIGHT, "\U000F07E4");
+          it.printf(86, 12, id(label), TextAlign::TOP_RIGHT, "Carbon Dioxide");
+      - id: page4
+        lambda: |-
+          it.printf(84, 72, id(product), TextAlign::BOTTOM_RIGHT, "%.0f", id(pm25).state);
+          it.printf(84, 64, id(unit), TextAlign::BOTTOM_LEFT, "µg/m³");
+          it.printf(128, 0, id(icon), TextAlign::TOP_RIGHT, "\U000F1799");
+          it.printf(86, 12, id(label), TextAlign::TOP_RIGHT, "Particulates");
+
+interval:
+  - interval: 7s
+    then:
+      - display.page.show_next: main_screen
+      - component.update: main_screen
